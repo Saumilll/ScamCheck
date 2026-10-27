@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+data
+*.db
+*.db-journal
+.vercel
+.DS_Store

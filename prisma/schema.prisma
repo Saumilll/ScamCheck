@@ -1,0 +1,24 @@
+// Used when DATABASE_URL points to PostgreSQL (Supabase / Neon).
+// When DATABASE_URL is empty the app uses a local SQLite file through lib/db.js
+// with the exact same fields, so no code changes are needed to switch.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Scan {
+  id        String   @id @default(cuid())
+  inputType String   // "message" | "job" | "profile"
+  inputText String
+  riskScore Int      // 0-100
+  riskLevel String   // "safe" | "suspicious" | "high"
+  reasons   Json     // array of detected red flags
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
