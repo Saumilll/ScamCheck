@@ -20,7 +20,7 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-export default function HistoryDrawer({ open, onClose, items, loading, dbDriver, dbNote, onSelect, onClear }) {
+export default function HistoryDrawer({ open, onClose, items, loading, dbDriver, dbNote, retentionDays, onSelect, onClear }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => e.key === 'Escape' && onClose();
@@ -44,7 +44,7 @@ export default function HistoryDrawer({ open, onClose, items, loading, dbDriver,
           <div>
             <h2 className="text-lg font-semibold">Recent scans</h2>
             <p className="text-xs text-muted">
-              {dbDriver ? `Stored in ${dbDriver === 'postgres' ? 'PostgreSQL' : dbDriver === 'sqlite' ? 'local SQLite' : 'memory (resets on restart)'}` : 'Loading…'}
+              {`Only you can see these (this browser). Deleted after ${retentionDays || 30} days.`}
             </p>
           </div>
           <button type="button" onClick={onClose} className="btn-ghost !px-2" aria-label="Close">
@@ -58,7 +58,7 @@ export default function HistoryDrawer({ open, onClose, items, loading, dbDriver,
           {loading && items.length === 0 ? (
             <p className="p-5 text-sm text-muted">Loading your scans…</p>
           ) : items.length === 0 ? (
-            <p className="p-5 text-sm text-muted">No scans yet. Check something and it will show up here.</p>
+            <p className="p-5 text-sm text-muted">No scans yet. Your checks will appear here, visible only to you.</p>
           ) : (
             <ul className="divide-y divide-line">
               {items.map((item) => {
@@ -80,7 +80,7 @@ export default function HistoryDrawer({ open, onClose, items, loading, dbDriver,
                           {TYPE_NAMES[item.inputType] || item.inputType}
                           <span className={`text-xs font-medium ${style.text}`}>{LEVELS[item.riskLevel]?.label}</span>
                         </span>
-                        <span className="mt-1 block truncate text-sm text-muted">{item.inputText}</span>
+                        <span className="mt-1 block truncate text-sm text-muted">{item.inputText || 'Text not saved (score and red flags only)'}</span>
                         <span className="mt-1 block text-xs text-muted">{timeAgo(item.createdAt)}</span>
                       </span>
                     </button>
@@ -95,7 +95,7 @@ export default function HistoryDrawer({ open, onClose, items, loading, dbDriver,
           <footer className="border-t border-line p-4">
             <button type="button" onClick={onClear} className="btn-ghost w-full text-danger">
               <Trash2 size={16} aria-hidden="true" />
-              Delete all scans
+              Delete my scans
             </button>
           </footer>
         ) : null}

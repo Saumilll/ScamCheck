@@ -19,6 +19,7 @@ model Scan {
   riskLevel String   // "safe" | "suspicious" | "high"
   reasons   Json     // array of detected red flags
   createdAt DateTime @default(now())
+  ownerId   String   @default("") // anonymous visitor ID; history is only shown to its owner
 
-  @@index([createdAt])
+  @@index([ownerId, createdAt])
 }

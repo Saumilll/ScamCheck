@@ -3,6 +3,9 @@ import { INPUT_LIMITS, INPUT_TYPES, LEVELS, SAFETY_TIPS } from '@/lib/scamRules'
 import { combineScores, runHeuristics } from '@/lib/heuristics';
 import { isAiConfigured, runAiAnalysis } from '@/lib/ai';
 import { saveScan } from '@/lib/db';
+import { isHistoryEnabled } from '@/lib/privacy';
+import { getVisitorId } from '@/lib/visitor';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +27,14 @@ function mergeTips(level, aiTips) {
 }
 
 export async function POST(request) {
+  const limit = checkRateLimit(request);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: `Too many checks from your network. Please wait ${Math.ceil(limit.retryAfterSeconds / 60)} minute(s) and try again.` },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } }
+    );
+  }
+
   let body;
   try {
     body = await request.json();
@@ -63,24 +74,31 @@ export async function POST(request) {
   const { score, level } = combineScores(rules.score, ai ? ai.score : null);
   const flags = [...rules.flags, ...(ai ? ai.flags : [])];
 
-  // Persist (best effort — a database problem should not hide the result)
+  // Persist to this visitor's private history (best effort — a database problem should not hide the result).
+  // The visitor can choose not to keep the pasted text (saveText: false).
+  const historyOn = isHistoryEnabled();
+  const saveText = body?.saveText !== false;
   let saved = null;
   let dbDriver = null;
   let dbNote = '';
-  try {
-    const result = await saveScan({
-      inputType,
-      inputText: text,
-      riskScore: score,
-      riskLevel: level,
-      reasons: flags,
-    });
-    saved = result.scan;
-    dbDriver = result.driver;
-    dbNote = result.note;
-  } catch (err) {
-    dbNote = 'Could not save this scan to the database.';
-    console.error('[analyze] save failed:', err);
+  if (historyOn) {
+    try {
+      const ownerId = await getVisitorId({ create: true });
+      const result = await saveScan({
+        ownerId,
+        inputType,
+        inputText: saveText ? text : '',
+        riskScore: score,
+        riskLevel: level,
+        reasons: flags,
+      });
+      saved = result.scan;
+      dbDriver = result.driver;
+      dbNote = result.note;
+    } catch (err) {
+      dbNote = 'Could not save this scan to the database.';
+      console.error('[analyze] save failed:', err);
+    }
   }
 
   return NextResponse.json({
@@ -104,6 +122,7 @@ export async function POST(request) {
       model: ai ? ai.model : null,
     },
     saved: Boolean(saved),
+    historyEnabled: historyOn,
     dbDriver,
     dbNote,
   });

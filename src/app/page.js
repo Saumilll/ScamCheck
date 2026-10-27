@@ -250,6 +250,9 @@ export default function HomePage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [dbDriver, setDbDriver] = useState('');
   const [dbNote, setDbNote] = useState('');
+  const [saveText, setSaveText] = useState(true);
+  const [historyEnabled, setHistoryEnabled] = useState(true);
+  const [retentionDays, setRetentionDays] = useState(30);
 
   const resultRef = useRef(null);
 
@@ -263,6 +266,8 @@ export default function HomePage() {
       const res = await fetch('/api/history?limit=30', { cache: 'no-store' });
       const data = await res.json();
       if (res.ok) {
+        setHistoryEnabled(data.enabled !== false);
+        setRetentionDays(data.retentionDays || 30);
         setHistory(data.scans || []);
         setDbDriver(data.dbDriver || '');
         setDbNote(data.dbNote || '');
@@ -289,7 +294,7 @@ export default function HomePage() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputType: tab, text }),
+        body: JSON.stringify({ inputType: tab, text, saveText }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Something went wrong. Try again in a moment.');
@@ -312,7 +317,7 @@ export default function HomePage() {
 
   function openFromHistory(item) {
     setTab(item.inputType);
-    setTexts((t) => ({ ...t, [item.inputType]: item.inputText }));
+    if (item.inputText) setTexts((t) => ({ ...t, [item.inputType]: item.inputText }));
     setError('');
     setResult({
       riskScore: item.riskScore,
@@ -351,18 +356,20 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => {
-                setHistoryOpen(true);
-                loadHistory();
-              }}
-            >
-              <History size={16} aria-hidden="true" />
-              Recent scans
-              {history.length > 0 ? <span className="rounded-full bg-ink/10 px-1.5 text-xs tabular-nums">{history.length}</span> : null}
-            </button>
+            {historyEnabled ? (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setHistoryOpen(true);
+                  loadHistory();
+                }}
+              >
+                <History size={16} aria-hidden="true" />
+                Recent scans
+                {history.length > 0 ? <span className="rounded-full bg-ink/10 px-1.5 text-xs tabular-nums">{history.length}</span> : null}
+              </button>
+            ) : null}
             <ThemeToggle />
           </div>
         </div>
@@ -434,6 +441,23 @@ export default function HomePage() {
                 </span>
               </div>
 
+              {historyEnabled ? (
+                <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={saveText}
+                    onChange={(e) => setSaveText(e.target.checked)}
+                    className="mt-1 h-4 w-4 accent-[rgb(var(--ink))]"
+                  />
+                  <span>
+                    Keep the pasted text in my history
+                    <span className="block text-xs text-muted">
+                      Untick to save only the score and red flags. The text is then never stored.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
+
               {error ? (
                 <p role="alert" className="mt-4 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                   <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -461,8 +485,10 @@ export default function HomePage() {
                 </button>
               </div>
               <p className="mt-4 text-xs leading-relaxed text-muted">
-                Scans are saved to this app&apos;s database so you can reopen them under Recent scans. Do not paste
-                passwords or card numbers. A score is a guide, not proof.
+                {historyEnabled
+                  ? `Your scan history is private to this browser (an anonymous cookie, no account) and is deleted automatically after ${retentionDays} days. Other visitors cannot see it. `
+                  : 'Scans are not stored. '}
+                Do not paste passwords or card numbers. The text is sent to an AI service for analysis. A score is a guide, not proof.
               </p>
             </div>
           </section>
@@ -481,6 +507,7 @@ export default function HomePage() {
         loading={historyLoading}
         dbDriver={dbDriver}
         dbNote={dbNote}
+        retentionDays={retentionDays}
         onSelect={openFromHistory}
         onClear={clearHistory}
       />

@@ -22,6 +22,8 @@ The two scores are blended. If the AI key is missing or the AI call fails, you s
 │   ├── heuristics.js            Rule engine + score blending
 │   ├── ai.js                    Groq / Gemini / OpenAI client (plain fetch)
 │   ├── db.js                    Postgres (Prisma) ⇄ SQLite ⇄ memory, auto-selected
+│   ├── privacy.js               ★ Retention days, rate limit, history on/off
+│   ├── visitor.js, rateLimit.js Anonymous visitor cookie, per-IP limiter
 │   └── uiConfig.js              UI wording, example texts, colour classes
 ├── components/                  RiskGauge.js, HistoryDrawer.js
 ├── prisma/schema.prisma         Scan model
@@ -150,6 +152,8 @@ Restart `npm run dev`. After a scan, the result panel says which AI scored it. I
    git push -u origin main
    ```
    `.gitignore` already keeps `.env.local` out of GitHub, so your keys stay private.
+   **Keys go only in `.env.local`, never in `.env.example`.** `.env.example` is uploaded to GitHub, `.env.local` is not. Run `git ls-files` before pushing: `.env.local` must not appear in the list, and `.env.example` must have empty values after the `=`.
+   Run the `git` commands from inside the project folder (the one containing `package.json`) so that folder is the repository root.
 3. **Import into Vercel.** Sign in at <https://vercel.com> with GitHub, click **Add New → Project**, and select your repo. Vercel detects Next.js automatically.
 4. **Add environment variables** (Settings → Environment Variables, before the first deploy):
    | Name | Value |
@@ -210,6 +214,18 @@ Almost everything lives in **`lib/scamRules.js`**.
 
 ---
 
+## Privacy and abuse protection (public sites)
+
+- **Each visitor only sees their own scans.** A random anonymous ID is stored in a cookie. Scans are saved with that ID, and **Recent scans** and **Delete my scans** only touch that visitor's rows. No account is needed. Clearing cookies or switching device starts a fresh, empty history.
+- **Optional text storage.** Under the text box, "Keep the pasted text in my history" can be unticked. Then only the score and red flags are stored, never the text.
+- **Automatic deletion.** Scans older than 30 days are deleted (`PRIVACY.retentionDays` in `lib/privacy.js`). Rows created by older versions of this app, which had no owner, are deleted on first start.
+- **History off switch.** Set `HISTORY_ENABLED=false` in `.env.local` (or in Vercel's Environment Variables) to stop saving and showing history completely.
+- **Rate limit.** 15 scans per IP address per 10 minutes by default (`RATE_LIMIT_MAX`). On Vercel each server instance counts separately, so this is a best-effort guard. For a hard limit, also turn on rate limiting in Vercel's **Firewall**.
+- **No migration needed.** The database table is upgraded automatically on first use.
+- **Be honest with your users.** The pasted text is sent to the AI provider you configure (Google, Groq or OpenAI) for analysis. Add a short privacy note on your site if you share it publicly.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -224,4 +240,5 @@ Almost everything lives in **`lib/scamRules.js`**.
 | Changes to `.env.local` ignored | Stop and restart `npm run dev` |
 | `prisma generate` fails with `CLI.UNKNOWN_COMMAND` | A Prisma 8 CLI was picked up. This project pins Prisma 6.19.3 and ships a `package-lock.json`. Delete `node_modules`, then run `npm install` again |
 | `npm audit` reports warnings about Prisma CLI, Tailwind or PostCSS | These are build-time tools that never run on your server. Do not run `npm audit fix --force`, it upgrades to versions this project is not written for |
+| GitHub blocks the push with "Push cannot contain secrets" | A real key is in a committed file (usually `.env.example`). Revoke that key, empty the value in `.env.example`, delete the `.git` folder, then run `git init` and the Part 4 commands again |
 | Vercel build fails on Prisma | Check `DATABASE_URL` is set for the Production environment and redeploy |
